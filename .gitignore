@@ -1,7 +1,9 @@
 
 
+
 *:Zone.Identifier
-.sqlite
+tranco_ZWNPG.csv
+*.sqlite
 # Byte-compiled / optimized / DLL files
 __pycache__/
 
