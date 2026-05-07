@@ -10,28 +10,6 @@ WHAT CHANGED FROM v1:
   The new approach:
     1. A custom ExtractLinksCommand runs INSIDE the browser, reads the
        live DOM via JavaScript, and writes links to a small JSON file.
-    2. A custom CookieConsentCommand clicks accept banners before we
-       extract links, so we see the real page content.
-    3. Our Python orchestrator simply reads the JSON file after the
-       first command sequence finishes — no timing issues at all.
-
-USAGE:
-  # Crawl 1 site from a file
-  python crawler.py --file sites1.csv
-
-  # Crawl Tranco top 100 (project requirement)
-  python crawler.py --tranco --n 100 --headless
-
-  # Quick test with 3 sites
-  python crawler.py --tranco --n 3 --headless
-
-REQUIRES:
-  custom_commands.py must be in the same directory as this file.
-"""
-
-import argparse
-import json
-import logging
 import os
 from pathlib import Path
 from typing import Literal
