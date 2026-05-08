@@ -1,0 +1,7 @@
+url,top_level_url,is_third_party_channel,resource_type,method,post_body,referrer,request_domain,flagged_by_filter,classification,manual_reason
+https://salim.wpltracker.com/fb_proxy.js,https://salim.webprivacylab.com/,,script,GET,,https://salim.webprivacylab.com/,salim.wpltracker.com,False,TRACKING_HEURISTIC,contains /track
+https://sandra.webprivacylab.com/trackers_from_other_subdomains.js,https://salim.webprivacylab.com/,,script,GET,,https://salim.webprivacylab.com/,sandra.webprivacylab.com,False,TRACKING_HEURISTIC,contains /track
+https://salim.webprivacylab.com/conversion_api_server_side_tracker,https://salim.webprivacylab.com/,,xmlhttprequest,POST,,https://salim.webprivacylab.com/,salim.webprivacylab.com,False,TRACKING_HEURISTIC,contains /track
+https://a.et.stg.nytimes.com/track,https://salim.webprivacylab.com/,,beacon,POST,,https://salim.webprivacylab.com/,a.et.stg.nytimes.com,False,TRACKING_HEURISTIC,contains /track
+https://a.et.stg.nytimes.com/track,https://salim.webprivacylab.com/,,beacon,POST,,https://salim.webprivacylab.com/,a.et.stg.nytimes.com,False,TRACKING_HEURISTIC,contains /track
+https://a.et.stg.nytimes.com/track,https://salim.webprivacylab.com/,,beacon,POST,,https://salim.webprivacylab.com/,a.et.stg.nytimes.com,False,TRACKING_HEURISTIC,contains /track

@@ -1,0 +1,2 @@
+test_url,total_requests,tracking_filter,tracking_heuristic,suspicious_manual,clean_crawling,canvas_fp,audio_fp
+https://salim.webprivacylab.com/,31,14,6,0,11,False,False
