@@ -8,11 +8,13 @@ import requests
 import pandas as pd
 from urllib.parse import urlparse
 from adblockparser import AdblockRules
+import time
+import os
 
 DB_PATH = "./datadir/crawl.sqlite"
 
 # ─────────────────────────────────────────────
-# FILTER LISTS
+# FILTER LISTS (UNCHANGED)
 # ─────────────────────────────────────────────
 FILTER_LISTS = {
     "EasyList": "https://easylist.to/easylist/easylist.txt",
@@ -24,14 +26,13 @@ REGIONAL_LISTS = {
     "EasyList_China": "https://easylist-downloads.adblockplus.org/easylistchina.txt",
 }
 
-
 # ─────────────────────────────────────────────
-# DOWNLOAD LISTS
+# DOWNLOAD FILTER LISTS
 # ─────────────────────────────────────────────
 def download_filter_list(name: str, url: str) -> list[str]:
     cache_path = f"./datadir/{name}.txt"
+
     try:
-        import os
         if os.path.exists(cache_path):
             print(f"  [cache] Using cached {name}")
             with open(cache_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -53,40 +54,90 @@ def download_filter_list(name: str, url: str) -> list[str]:
         return []
 
 
+# ─────────────────────────────────────────────
+# BUILD RULES
+# ─────────────────────────────────────────────
 def build_rules(list_names, all_lists):
     combined_rules = []
+
     for name in list_names:
         if name in all_lists:
             combined_rules.extend(download_filter_list(name, all_lists[name]))
 
     print(f"  [*] Total rules loaded: {len(combined_rules):,}")
+
     return AdblockRules(combined_rules, use_re2=False)
 
 
 # ─────────────────────────────────────────────
-# FAST TRACKING CHECK (REPLACES apply)
+# FAST TRACKING CHECK (WITH DEBUG + SPEED)
 # ─────────────────────────────────────────────
 def check_tracking_fast(df, rules):
-    results = []
-    append = results.append
 
-    urls = df["url"].values
-    is_tp = df["is_third_party_channel"].values
-    rtypes = df["resource_type"].values
+    start_time = time.time()
 
-    for i in range(len(df)):
+    temp = pd.DataFrame({
+        "url": df["url"].astype(str),
+        "tp": df["is_third_party_channel"].astype(bool),
+        "rtype": df["resource_type"].astype(str),
+    })
+
+    unique = temp.drop_duplicates()
+    total = len(unique)
+
+    print(f"    [INFO] Total rows    : {len(temp):,}")
+    print(f"    [INFO] Unique checks : {total:,}")
+    print(f"    [INFO] Starting scan...\n")
+
+    cache = {}
+
+    for i, row in enumerate(unique.itertuples(index=False), start=1):
+
+        if i == 1 or i % 2000 == 0:
+
+            elapsed = time.time() - start_time
+            speed = i / elapsed if elapsed > 0 else 0
+            eta = (total - i) / speed if speed > 0 else 0
+
+            print(
+                f"    ✔ {i:,}/{total:,} "
+                f"({i/total*100:.1f}%) | "
+                f"{speed:.1f} req/s | "
+                f"ETA: {eta/60:.1f} min"
+            )
+
         options = {
-            "third-party": bool(is_tp[i]),
-            "script": rtypes[i] == "script",
-            "image": rtypes[i] == "image",
-            "xmlhttprequest": rtypes[i] == "xmlhttprequest",
+            "third-party": row.tp,
+            row.rtype: True
         }
-        try:
-            append(rules.should_block(urls[i], options))
-        except:
-            append(False)
 
-    return results
+        try:
+            cache[(row.url, row.tp, row.rtype)] = rules.should_block(
+                row.url,
+                options
+            )
+        except:
+            cache[(row.url, row.tp, row.rtype)] = False
+
+    print("\n    [DONE] Reconstructing results...")
+
+    result = [
+        cache[(u, tp, rt)]
+        for u, tp, rt in zip(
+            temp["url"],
+            temp["tp"],
+            temp["rtype"]
+        )
+    ]
+
+    elapsed = time.time() - start_time
+
+    print("\n    ===============================")
+    print(f"    COMPLETED IN : {elapsed/60:.2f} minutes")
+    print(f"    SPEED        : {total/elapsed:.1f} checks/sec")
+    print("    ===============================\n")
+
+    return result
 
 
 # ─────────────────────────────────────────────
@@ -114,6 +165,7 @@ conn.close()
 
 print(f"[*] Total HTTP requests: {len(requests_df):,}")
 print(f"[*] Unique sites: {requests_df['site_url'].nunique()}")
+
 total_sites = requests_df["site_url"].nunique()
 
 
@@ -127,38 +179,55 @@ def get_domain(url: str) -> str:
         return ""
 
 
+print("\n[*] Extracting domains...")
+
 requests_df["request_domain"] = requests_df["url"].apply(get_domain)
 requests_df["top_domain"] = requests_df["top_level_url"].apply(get_domain)
 
 
 # ─────────────────────────────────────────────
-# PHASE A: GLOBAL LISTS
+# PHASE A
 # ─────────────────────────────────────────────
 all_lists = {**FILTER_LISTS, **REGIONAL_LISTS}
 
 print("\n[Phase A] EasyList + EasyPrivacy")
-rules_global = build_rules(["EasyList", "EasyPrivacy"], all_lists)
 
-print("[*] Checking requests (fast)...")
-requests_df["tracked_global"] = check_tracking_fast(requests_df, rules_global)
-
-
-# ─────────────────────────────────────────────
-# PHASE B: GLOBAL + REGIONAL
-# ─────────────────────────────────────────────
-print("\n[Phase B] Global + Regional Lists")
-rules_with_regional = build_rules(
-    ["EasyList", "EasyPrivacy", "Liste_AR"], all_lists
+rules_global = build_rules(
+    ["EasyList", "EasyPrivacy"],
+    all_lists
 )
 
-print("[*] Checking requests (fast)...")
-requests_df["tracked_regional"] = check_tracking_fast(requests_df, rules_with_regional)
+print("[*] Checking requests...")
+
+requests_df["tracked_global"] = check_tracking_fast(
+    requests_df,
+    rules_global
+)
+
+
+# ─────────────────────────────────────────────
+# PHASE B
+# ─────────────────────────────────────────────
+print("\n[Phase B] Global + Regional Lists")
+
+rules_with_regional = build_rules(
+    ["EasyList", "EasyPrivacy", "Liste_AR", "EasyList_China"],
+    all_lists
+)
+
+print("[*] Checking requests...")
+
+requests_df["tracked_regional"] = check_tracking_fast(
+    requests_df,
+    rules_with_regional
+)
 
 
 # ─────────────────────────────────────────────
 # METRICS
 # ─────────────────────────────────────────────
 def compute_metrics(df: pd.DataFrame, col: str, label: str):
+
     print(f"\n{'─'*60}")
     print(f"  Results: {label}")
     print(f"{'─'*60}")
@@ -166,18 +235,21 @@ def compute_metrics(df: pd.DataFrame, col: str, label: str):
     tracked = df[df[col]]
 
     sites_any_tracking = tracked["site_url"].nunique()
+
     print(f"  a. Sites with any tracking: "
           f"{sites_any_tracking}/{total_sites} "
           f"({sites_any_tracking/total_sites*100:.1f}%)")
 
     first_party = tracked[tracked["is_third_party_channel"] == 0]
     sites_fp = first_party["site_url"].nunique()
+
     print(f"  b. Sites with 1st-party tracking: "
           f"{sites_fp}/{total_sites} "
           f"({sites_fp/total_sites*100:.1f}%)")
 
     third_party = tracked[tracked["is_third_party_channel"] == 1]
     sites_tp = third_party["site_url"].nunique()
+
     print(f"  c. Sites with 3rd-party tracking: "
           f"{sites_tp}/{total_sites} "
           f"({sites_tp/total_sites*100:.1f}%)")
@@ -206,9 +278,6 @@ def compute_metrics(df: pd.DataFrame, col: str, label: str):
 
     print(f"\n  e. Top 15 tracking domains:")
     print(top_domains.to_string(index=False))
-
-    per_site.to_csv(f"./datadir/step6_per_site_{label.replace(' ', '_')}.csv", index=False)
-    top_domains.to_csv(f"./datadir/step6_top_domains_{label.replace(' ', '_')}.csv", index=False)
 
 
 compute_metrics(requests_df, "tracked_global", "Global Lists Only")

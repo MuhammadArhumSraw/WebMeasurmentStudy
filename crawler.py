@@ -10,10 +10,14 @@ WHAT CHANGED FROM v1:
   The new approach:
     1. A custom ExtractLinksCommand runs INSIDE the browser, reads the
        live DOM via JavaScript, and writes links to a small JSON file.
+    """
+
 import os
 from pathlib import Path
 from typing import Literal
-
+import json
+import argparse
+import logging
 import tranco
 
 from openwpm.command_sequence import CommandSequence
@@ -74,10 +78,13 @@ else:
 # OPENWPM CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 display_mode: Literal["native", "headless", "xvfb"] = "native"
+
+# cRAWLING FRO STEP 9 AS WELL
+sites.append('https://salim.webprivacylab.com/')
 if args.headless:
     display_mode = "headless"
 
-NUM_BROWSERS = 1
+NUM_BROWSERS = 2
 
 manager_params = ManagerParams(num_browsers=NUM_BROWSERS)
 browser_params = [BrowserParams(display_mode=display_mode) for _ in range(NUM_BROWSERS)]
@@ -100,15 +107,13 @@ os.makedirs(manager_params.data_directory / "links",  exist_ok=True)
 # HELPER: Read links saved by ExtractLinksCommand
 # ─────────────────────────────────────────────────────────────────────────────
 def read_extracted_links(site_url: str) -> list:
-    """
-    Read the JSON file written by ExtractLinksCommand for this site.
+
+    '''Read the JSON file written by ExtractLinksCommand for this site.
 
     The file is at: ./datadir/links/<sanitised_url>.json
     The sanitisation here MUST match what ExtractLinksCommand does.
-    Returns [] if the file doesn't exist (e.g. the page failed to load).
-    """
-    
-    from urllib.parse import urlparse
+    Returns [] if the file doesn't exist (e.g. the page failed to load).'''
+   
 
     safe_name = safe_site_name(site_url)
 
